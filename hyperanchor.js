@@ -3,10 +3,10 @@
  * MIT Licence
  * Copyright 2014 brian ford
  *
- * HTML has hyperlinks but it totally needs hyperanchors
+ * HTML has hyperlinks but it's totally missing hyperanchors
  *
  * Hyperachor makes all the text on your page anchorable.
- * when a user selects text, hyperanchor constructs a minimal
+ * When a user selects text, hyperanchor constructs a minimalish
  * regex representing the selection, and updates the URL accordingly
  */
 
@@ -25,7 +25,16 @@ window.hyperanchor = window.hyperanchor || {};
  */
 hyperanchor.start = function (cb) {
   cb = cb || function (text) {
-    window.location.hash = text;
+    if (text.length) {
+      window.location.hash = text;
+      var r = window.getSelection().getRangeAt(0);
+      var nodes = getNodesInRange(r);
+      unwrapText(hyperanchor.wrapped);
+      unwrapEnds();
+      wrapEnds(r);
+      hyperanchor.wrapped = getParentsOfTextNodes(nodes);
+      hyperanchor.wrapped.forEach(wrapText);
+    }
   };
   document.body.addEventListener('mouseup', function () {
     cb(hyperanchor.construct());
@@ -74,7 +83,8 @@ hyperanchor.rewrite = function () {
 }
 
 hyperanchor.scrollTo
-
+hyperanchor.wrapped = [];
+hyperanchor.ends = {};
 
 /*
  * Helpers
@@ -105,7 +115,7 @@ function getTextFromSelection (sel) {
  * this isn't truly minimal; the algorithm aims for readability
  * over a short URL
  */
-var t = document.body.innerText;
+var t = document.body.innerText.split('\n').join('');
 function minimalMatcher (s) {
   s = s.trim();
   var bound = 1,
@@ -114,7 +124,7 @@ function minimalMatcher (s) {
       right,
       matches,
       wholeStringRegex = new RegExp(s, 'g'),
-      u=t.match(wholeStringRegex).length; // check how many of this substr there are
+      u=(t.match(wholeStringRegex) || []).length || 1; // check how many of this substr there are
 
   do {
     bound += 1;
@@ -123,7 +133,7 @@ function minimalMatcher (s) {
     } else {
       left = s.substr(0,bound).trim();
       right = s.substr(s.length-bound).trim();
-      re = new RegExp(left + '.*?' + right, 'g');
+      re = new RegExp(left + '[\\s\\S]+?' + right, 'g');
     }
     matches = t.match(re).length;
   } while (matches > u && bound < 5);
@@ -132,7 +142,6 @@ function minimalMatcher (s) {
 function formatMatches (matches) {
   return (matches > 0 ? ('[' + matches + ']') : '');
 }
-
 
 
 /*
@@ -161,10 +170,10 @@ function getNextNode (node) {
   if (node.firstChild) {
     return node.firstChild;
   }
-  do {
+  while (node && !node.nextSibling) {
     node = node.parentNode;
-  } while (!node.nextSibling);
-  return node.nextSibling;
+  }
+  return node && node.nextSibling;
 }
 
 function getNodesInRange (range) {
@@ -176,13 +185,109 @@ function getNodesInRange (range) {
 
   // walk parent nodes from start to common ancestor
   for (node = start.parentNode; (node && node !== commonAncestor); node = node.parentNode) {
-    nodes.unshift(node);
+    if (nodes.indexOf(node) === -1) {
+      nodes.unshift(node);
+    }
   }
 
   // walk children and siblings from start until end is found
   for (node = start; (node && node !== end); node = getNextNode(node)) {
-    nodes.push(node);
+    if (nodes.indexOf(node) === -1) {
+      nodes.push(node);
+    }
   }
 
+  nodes.splice(start, 1);
+  nodes.splice(end, 1);
+
   return nodes;
+}
+
+function getParentsOfTextNodes (nodes) {
+  nodes = nodes.filter(function (node) {
+    return node.nodeName === '#text' && node.textContent.trim().length > 0;
+  });
+
+  nodes = nodes.map(function (node) {
+    return node.parentNode;
+  });
+
+  return nodes;
+}
+
+function wrapText (node) {
+  node.classList.add('hyperanchorized');
+}
+
+function wrapEnds (range) {
+  var start = range.startContainer.parentNode,
+      end = range.endContainer.parentNode;
+
+  if (start === end) {
+
+    return;
+  }
+  if (range.startOffset > 0) {
+    if (range.startOffset >= start.textContent.trim().length) {
+      wrapText(start);
+    } else {
+      splitStartNode(start, range.startOffset);
+    }
+  }
+  if (range.endOffset > 0) {
+    if (range.endOffset >= end.textContent.trim().length) {
+      wrapText(end);
+    } else {
+      splitEndNode(end, range.endOffset);
+    }
+  }
+  hyperanchor.ends.start = start;
+  hyperanchor.ends.end = end;
+}
+
+function unwrapEnds () {
+  [
+    hyperanchor.ends.start,
+    hyperanchor.ends.end
+  ].forEach(unwrapEnd);
+}
+
+function unwrapEnd (end) {
+  if (!end) {
+    return;
+  }
+  if (end.childNodes.length > 1) {
+    end.innerHTML = end.textContent;
+  } else {
+    unwrapText([end]);
+  }
+}
+
+// takes a parent with only a single text node as a child
+// and splits it into a text node plus a text node wrapped
+// in a `<span>`
+function splitStartNode (elt, offset) {
+  var text = elt.textContent;
+  var unwrapped = text.substr(0, offset);
+  var wrapped = wrapInSpan(text.substr(offset));
+  elt.innerHTML = unwrapped + wrapped;
+}
+// takes a parent with only a single text node as a child
+// and splits it into a text node plus a text node wrapped
+// in a `<span>`
+function splitEndNode (elt, offset) {
+  var text = elt.textContent;
+  var wrapped = wrapInSpan(text.substr(0, offset));
+  var unwrapped = text.substr(offset);
+  elt.innerHTML = wrapped + unwrapped;
+}
+
+function wrapInSpan (text) {
+  return '<span class="hyperanchorized">' + text + '</span>';
+}
+
+function unwrapText (nodes) {
+  nodes.forEach(function (element) {
+    element.classList.remove('hyperanchorized');
+  });
 }
