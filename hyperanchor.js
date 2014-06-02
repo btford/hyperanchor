@@ -10,6 +10,8 @@
  * regex representing the selection, and updates the URL accordingly
  */
 
+'use strict';
+
 window.hyperanchor = window.hyperanchor || {};
 
 /*
