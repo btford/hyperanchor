@@ -1,0 +1,26 @@
+{
+  "name": "hyperachor",
+  "version": "0.0.0",
+  "description": "anchors for everything",
+  "main": "hyperanchor.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "karma start"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/btford/hyperanchor.git"
+  },
+  "keywords": [
+    "hyperlink",
+    "client-side"
+  ],
+  "author": "Brian Ford <btford@umich.edu>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/btford/hyperanchor/issues"
+  },
+  "homepage": "https://github.com/btford/hyperanchor"
+}
