@@ -24,6 +24,11 @@ window.hyperanchor = window.hyperanchor || {};
  * selection changes instead of updating the url
  */
 hyperanchor.start = function (cb) {
+  // set the current selection
+  var selection = window.location.hash
+  document.evaluate('//*[text()[contains(.,\'selection\')]]', document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE);
+
+  // listen and update the URL if the selection changes
   cb = cb || function (text) {
     if (text.length) {
       window.location.hash = text;
@@ -43,10 +48,11 @@ hyperanchor.start = function (cb) {
 
 
 /*
+ * takes a slection as an optional arg
  * returns a path to a hyperanchor
  */
 hyperanchor.construct = function (sel) {
-  var sel = window.getSelection() || sel;
+  var sel = sel || window.getSelection();
   var text = getTextFromSelection(sel);
 
   // NOTE: this culls single character selections; they produce
@@ -67,20 +73,31 @@ hyperanchor.container = document.body;
  * lol...lol[4] and returns a regex
  */
 hyperanchor.parse = function (str) {
-  var parts = /(.+?)\.\.\.([^\[]+)(\[[0-9]+\])?/.exec(str);
-  return {
-    left: parts[1],
-    right: parts[2],
-    index: parts[3] || 0
-  };
+  str = str.trim();
+  var parsed = {};
+  var parts = /^(.+?)\.\.\.([^\[]+)(:?\[([0-9]+)\])?$/.exec(str);
+  if (parts) {
+    parsed.right = parts[2];
+  } else {
+    var parts = /^(.{4,10}?)(:?\[([0-9]+)\])?$/.exec(str);
+    if (!parts) {
+      throw new Error('invalid patcher');
+    }
+    parsed.left = parts[1];
+  }
+  var last = parts.length - 1;
+    parsed.left = parts[1];
+    parsed.index = (parts[last] && parseInt(parts[last])) || 0;
+
+  return parsed;
 }
 
 /*
- *
+ * rewrite the URL
  */
-hyperanchor.rewrite = function () {
-
-}
+hyperanchor.rewrite = function (str) {
+  window.location.hash = str;
+};
 
 hyperanchor.scrollTo
 hyperanchor.wrapped = [];
@@ -109,14 +126,39 @@ function getTextFromSelection (sel) {
   return '';
 }
 
+function getSelectionFromRegex (sel) {
+
+}
+
+function getTextNodes () {
+  // sup haters
+  return Array.prototype.slice.call(document.querySelectorAll('*')).
+      filter(function (elt) {
+        var firstBornChild = elt.firstChild;
+        return firstBornChild &&
+            firstBornChild.nodeType === 3 &&
+            firstBornChild.textContent.trim().length > 0;
+      }).map(function (elt) {
+        return elt.childNodes[0];
+      });
+}
+
+function selectElementContents (el) {
+  var range = document.createRange();
+  range.selectNodeContents(el);
+  var sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
 
 /*
  * return a "minimal" hyperanchor path to the given text
  * this isn't truly minimal; the algorithm aims for readability
- * over a short URL
+ * over shortness
  */
-var t = document.body.innerText.split('\n').join('');
-function minimalMatcher (s) {
+function minimalMatcher (s, corpus) {
+  corpus = corpus || document.body.innerText.split('\n').join('');
   s = s.trim();
   var bound = 1,
       re,
@@ -124,7 +166,7 @@ function minimalMatcher (s) {
       right,
       matches,
       wholeStringRegex = new RegExp(s, 'g'),
-      u=(t.match(wholeStringRegex) || []).length || 1; // check how many of this substr there are
+      u=(corpus.match(wholeStringRegex) || []).length || 1; // check how many of this substr there are
 
   do {
     bound += 1;
@@ -135,7 +177,7 @@ function minimalMatcher (s) {
       right = s.substr(s.length-bound).trim();
       re = new RegExp(left + '[\\s\\S]+?' + right, 'g');
     }
-    matches = t.match(re).length;
+    matches = corpus.match(re).length;
   } while (matches > u && bound < 5);
   return {text: left + '...' + right, re: re};
 }
@@ -190,7 +232,7 @@ function getNodesInRange (range) {
     }
   }
 
-  // walk children and siblings from start until end is found
+  // walk children and siblings from start until we hit the end
   for (node = start; (node && node !== end); node = getNextNode(node)) {
     if (nodes.indexOf(node) === -1) {
       nodes.push(node);
