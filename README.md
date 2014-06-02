@@ -3,12 +3,6 @@ hyperanchors for your hyperlinks
 
 great for blogs and content sites
 
-- tweet at hypothes.is
-
-## how does it work?
-
-{{ screenshots }}
-
 ## Usage
 
 1. Add `hyperanchor.js` to your page.
@@ -29,7 +23,7 @@ Parses the existing URL, ...
 
 ### `hyperanchor.construct`
 
-Optionally takes a <>, returns a matcher string
+Optionally takes a string, returns a matcher string
 
 ## License
 MIT
